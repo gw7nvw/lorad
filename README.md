@@ -14,7 +14,12 @@ It is designed to be used in conjunction with cacophony-lora-appserver running o
 
 It is designed to work via TheThingsNetwork, with the app-server as a webhook client
 
-
+```
+----------  LoRaWAN   ---------------------  LoRaWAN  -------------------   https   ---------------------    https   -----------------
+| Camera | ---------- |      Gateway      | --------- | Network server  | --------- | Application sever | ---------- | Cacophony API |
+----------  RF/LoRa   | Private or public |  over IP  | (currently TTN) | (webhook) |   self-hosted?    |    (API)   -----------------
+                      ---------------------           -------------------           ---------------------
+```
 
 # Includes
 
