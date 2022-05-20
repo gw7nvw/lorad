@@ -17,10 +17,10 @@ class l1_LoRa(LoRa):
         self.set_pa_config(max_power=0x0F, output_power=0x0E)
         self.set_sync_word(0x34)
         self.set_dio_mapping([0] * 6) #initialise DIO0 for rxdone
-        self.reset_endpoint()
         self.set_rx_crc(True)
         self.l3_receive_handler=l3_receive_handler
-
+        self.reset_endpoint()
+        self.get_agc_auto_on()
 
     def reset_endpoint(self):
         logging.info("Resetting endpoint")
@@ -54,8 +54,9 @@ class l1_LoRa(LoRa):
 
     def select_rx1_mode(self):
         logging.debug("Listening RX1")
-        self.set_dio_mapping([0] * 6)
         self.set_mode(MODE.STDBY)
+        self.set_dio_mapping([0] * 6)
+        self.set_invert_iq(1)
         self.set_freq(self.RX1_FREQ)
         self.set_bw(self.RX1_BW)
         self.set_spreading_factor(self.RX1_SPREAD_FACTOR)
@@ -64,8 +65,8 @@ class l1_LoRa(LoRa):
 
     def select_rx2_mode(self):
         logging.debug("Listening RX2")
-        self.set_dio_mapping([0] * 6)
         self.set_mode(MODE.STDBY)
+        self.set_dio_mapping([0] * 6)
         self.set_freq(self.RX2_FREQ)
         self.set_bw(self.RX2_BW)
         self.reset_ptr_rx()
