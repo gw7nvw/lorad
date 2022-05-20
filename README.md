@@ -87,11 +87,14 @@ dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.
   
 ## Gateway configuration
   
- Your LORA gateway will need to be running on the NZ / AU_915_928_FSB_2 band.  Use of ther configurations is supported, but you will need to edit the frequencies, bandwidths and spread-factors in ccm.py to correspond. 
+ Your LORA gateway will need to be running on the NZ / AU_915_928_FSB_2 band.  Use of other configurations is supported, but you will need to edit the frequencies, bandwidths and spread-factors in ccm.py to correspond, verify they are allowed in your country, and verify they are supported by the modem hardware you have. 
   
+ - Network Server must point to TTN V3 (au1) - or whatever service you end up using as network server
+ - Channel plan  AU_915_928_FSB_2
+ 
  ....
   
-  
+
 ## Application Server
   
   ## Webhooks
