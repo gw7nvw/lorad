@@ -122,7 +122,7 @@ dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.
   - Each endpoint must be registered against the Application in TTN
   - APPEUI must match that on the camera and can be all 0
   - DEVEUI must be unique and must match
-  - AppKey must match
+  - ApiKey must match that configured on the application server. It is used to validate messages from the applications server ot the LoRaWAN network.
   - Network layer - Frequemncy plan must match device & gateway (AU_915_928_FSB_2)
   - Network layer - LoRaWAN version = 1.0.1
   - Network layer - Activation - OTAA
