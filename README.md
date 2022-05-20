@@ -52,22 +52,29 @@ Antenna of 82mm wire / track (for 915MHz tx frequency) - or appropriate commerci
 Use DBus to send messages from the RPi to the application server (and Cacphony API)
 
 e.g.
+
 **File:**
+
 dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.Lora /org/cacophony/Lora        org.cacophony.Lora.File string:'/home/pi/puttytat.png'
 
 **Unreliable message (best effort, no retries):**
+
 dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.Lora /org/cacophony/Lora        org.cacophony.Lora.UnreliableMessage string:"I tought I taw a putty tat"
 
 **Reliable message - (retry on fail)**
+
 dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.Lora /org/cacophony/Lora        org.cacophony.Lora.Message string:'{species': 'I'm sure I taw a putty tat'}
 
 **Connect & register: **
+
 dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.Lora /org/cacophony/Lora        org.cacophony.Lora.Connect
 
 **Disconnect:**
+
 dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.Lora /org/cacophony/Lora        org.cacophony.Lora.Disconnect
 
 **Check result of previous command:**
+
 dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.Lora /org/cacophony/Lora        org.cacophony.Lora.GetResponse int16:1
 *(where int16:1 is the sequence ID returned by any reliable message DBus request in above list)*
 
