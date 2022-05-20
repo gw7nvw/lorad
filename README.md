@@ -90,7 +90,7 @@ dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.
  The file lora_appserver.py can be run on an internet-visible server to act as an intermediary between the LoRaWAN network and the Cacoponhy API.
  
  The syntax is:
-   python3 server.py <port number>
+   ```python3 lora_appserver.py <port number>```
 
  The API_KEY in this script will need updating to match the Application API key in TheThingsNetwork.
   
