@@ -51,6 +51,7 @@ RPi pinouts are here:
 https://datasheets.raspberrypi.com/bcm2835/bcm2835-peripherals.pdf
 
 Antenna of 82mm wire / track (for 915MHz tx frequency) - or appropriate commercial equivalent connected to modem ANT / ANA 
+
 **DO not transmit without antenna connected, or you will damage the modem**
 
 # Usage 
