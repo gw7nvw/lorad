@@ -109,7 +109,9 @@ dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.
   
 
 ## Application Server
-  
+
+  - Application ApiKey must match that configured on the application server. It is used to validate messages from the application server to the LoRaWAN network via the TTN network server.
+
   ## Webhooks
   
  -   Webhook must be enabled to use the lora_appserver.py
@@ -122,11 +124,11 @@ dbus-send --system --type=method_call --print-reply        --dest=org.cacophony.
   - Each endpoint must be registered against the Application in TTN
   - APPEUI must match that on the camera and can be all 0
   - DEVEUI must be unique and must match
-  - ApiKey must match that configured on the application server. It is used to validate messages from the applications server ot the LoRaWAN network.
+  - AppKey must match on endpoint and TTN server
   - Network layer - Frequemncy plan must match device & gateway (AU_915_928_FSB_2)
   - Network layer - LoRaWAN version = 1.0.1
   - Network layer - Activation - OTAA
-  - Application later - Enforce Payload Encryption = Yes
+  - Application layer - Enforce Payload Encryption = Yes
   - Join - AppKey - must match the key on the device (Note: AppKey is manually assigned, AppsKey is generated durign OTAA - not the same thing!)
   
   Other parameters can be blank as they will by assigned during Over the air Activation (JOIN)
