@@ -26,7 +26,7 @@ It is designed to work via TheThingsNetwork, with the app-server as a webhook cl
 This repository includes the python package LoRaWAN from the following location:
 https://github.com/jeroennijhof/LoRaWAN
 
-Bugfixes have been made to this package to pprovide better handling on corrupted packets - and as such the package is included here
+Bugfixes have been made to this package to provide better handling on corrupted packets - and as such the package is included here
 
 
 
