@@ -74,48 +74,97 @@ import dbus.service
 #config files
 import toml
 
-class DbusHandler(dbus.service.Object):
-    def __init__(self, lora):
-        self.bus = dbus.SystemBus()
-        self.endpoint=lora
-        name = dbus.service.BusName('org.cacophony.Lora', bus=self.bus)
-        self.connected = False
-        super().__init__(name, '/org/cacophony/Lora')
+DBUS_NAME = "org.cacophony.thermalrecorder"
+DBUS_PATH = "/org/cacophony/thermalrecorder"
 
-    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='')
-    def Connect(self):
-        self.connected=True
-        l4.queue_connect(self.endpoint)
-        return self.endpoint.am_tx_seq_count
 
-    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
-    def Message(self, message):
-        self.connected=True
-        l4.queue_message(self.endpoint, message)
-        return self.endpoint.am_tx_seq_count
 
-    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
-    def File(self, filename):
-        self.connected=True
-        l4.queue_file(self.endpoint, filename)
-        return self.endpoint.am_tx_seq_count
 
-    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
-    def UnreliableMessage(self, message):
-        self.connected=True
-        l4.queue_unreliable_message(self.endpoint, message)
-        return 0
 
-    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='')
-    def Disconnect(self):
-        self.connected=True
-        l4.queue_disconnect(self.endpoint)
-        return 0
+# helper class to run dbus in background
+class DbusHandler:
+    def signal_tracking_callback(self, what, confidence, region, tracking):
+      print(
+          "Received a tracking signal and it says " + what,
+          confidence,
+          "%"
+      )
+  
+      self.connected=True
+      l4.queue_message(self.endpoint, "{classification: '"+what+"', confidence: "+str(confidence)+"}")
 
-    @dbus.service.method('org.cacophony.Lora', out_signature='ns', in_singature='s')
-    def GetResponse(self, seq):
-        self.connected=True
-        return self.endpoint.am_status[seq], self.endpoint.am_response[seq]
+    def __init__(self, endpoint):
+        self.endpoint=endpoint
+        self.loop = GLib.MainLoop()
+        self.t = threading.Thread(
+            target=self.run_server,
+        )
+        self.t.start()
+        self.connected=False
+
+    def quit(self):
+        self.loop.quit()
+
+    def run_server(self):
+        try:
+            bus = dbus.SystemBus()
+            object = bus.get_object(DBUS_NAME, DBUS_PATH)
+        except dbus.exceptions.DBusException as e:
+            print("Failed to initialize D-Bus object: '%s'" % str(e))
+            sys.exit(2)
+
+        bus.add_signal_receiver(
+            self.signal_tracking_callback,
+            dbus_interface=DBUS_NAME,
+            signal_name="Tracking",
+        )
+        self.loop.run()
+
+
+#class DbusHandler(dbus.service.Object):
+#    def __init__(self, lora):
+#        print("init DBUS")
+#        self.bus = dbus.SystemBus()
+#        self.endpoint=lora
+#        name = dbus.service.BusName('org.cacophony.thermalrecorder', bus=self.bus)
+#        self.connected = False
+#        super().__init__(name, '/org/cacophony/thermalrecorder')
+#
+#    @dbus.service.method('org.cacophony.thermalrecorder', out_signature='n', in_singature='')
+#    def Connect(self):
+#        self.connected=True
+#        l4.queue_connect(self.endpoint)
+#        return self.endpoint.am_tx_seq_count
+#
+#    @dbus.service.method('org.cacophony.thermalrecorder', out_signature='n', in_singature='ssss')
+#    def Tracking(self, what, confidence, region, tracking):
+#        print ("{classification: "+what+", confidence: "+str(confidence)+"}")
+#        self.connected=True
+#        l4.queue_message(self.endpoint, "{classification: '"+what+"', confidence: "+str(confidence)+"}")
+#        return self.endpoint.am_tx_seq_count
+#
+#    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
+#    def File(self, filename):
+#        self.connected=True
+#        l4.queue_file(self.endpoint, filename)
+#        return self.endpoint.am_tx_seq_count
+#
+#    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
+#    def UnreliableMessage(self, message):
+#        self.connected=True
+#        l4.queue_unreliable_message(self.endpoint, message)
+#        return 0
+#
+#    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='')
+#    def Disconnect(self):
+#        self.connected=True
+#        l4.queue_disconnect(self.endpoint)
+#        return 0
+
+#    @dbus.service.method('org.cacophony.Lora', out_signature='ns', in_singature='s')
+#     def GetResponse(self, seq):
+#        self.connected=True
+#         return self.endpoint.am_status[seq], self.endpoint.am_response[seq]
 
 # Background thread - checks each second for data to transmit via LoRaWAN.
 # First sends JOIN and REGISTER requests if we have not yet joined a network and registered with API
@@ -208,7 +257,6 @@ if __name__ == "__main__":
         mainloop = GLib.MainLoop()
  
         server = DbusHandler(lora)
-
     
         try:
             init_logging()
