@@ -62,6 +62,7 @@ import threading
 from l4 import l4
 from l3_LoRaWAN import l3
 from l1_LoRa import l1_LoRa
+from SX127x.board_config import BOARD
 
 #logging
 import logging
@@ -74,24 +75,25 @@ import dbus.service
 #config files
 import toml
 
-DBUS_NAME = "org.cacophony.thermalrecorder"
-DBUS_PATH = "/org/cacophony/thermalrecorder"
 
 
 
 
 
-# helper class to run dbus in background
-class DbusHandler:
+class TrackingReporter:
+    DBUS_NAME = "org.cacophony.thermalrecorder"
+    DBUS_PATH = "/org/cacophony/thermalrecorder"
+
     def signal_tracking_callback(self, what, confidence, region, tracking):
-      print(
-          "Received a tracking signal and it says " + what,
-          confidence,
-          "%"
-      )
-  
-      self.connected=True
-      l4.queue_message(self.endpoint, "{classification: '"+what+"', confidence: "+str(confidence)+"}")
+      if tracking==0:
+        print(
+            "Received a tracking signal and it says " + what,
+            confidence,
+            "%"
+        )
+    
+        self.connected=True
+        l4.queue_unreliable_message(self.endpoint, "{classification: '"+what+"', confidence: "+str(confidence)+"}")
 
     def __init__(self, endpoint):
         self.endpoint=endpoint
@@ -106,65 +108,69 @@ class DbusHandler:
         self.loop.quit()
 
     def run_server(self):
-        try:
+        while True:
+          try:
             bus = dbus.SystemBus()
-            object = bus.get_object(DBUS_NAME, DBUS_PATH)
-        except dbus.exceptions.DBusException as e:
-            print("Failed to initialize D-Bus object: '%s'" % str(e))
-            sys.exit(2)
+            object = bus.get_object(self.DBUS_NAME, self.DBUS_PATH)
+            break
+          except:
+            logging.error("Failed to subscribe to "+self.DBUS_NAME+". Sleeping 60 secs.")
+            sleep(60)
+            continue
+
 
         bus.add_signal_receiver(
             self.signal_tracking_callback,
-            dbus_interface=DBUS_NAME,
+            dbus_interface=self.DBUS_NAME,
             signal_name="Tracking",
         )
         self.loop.run()
 
 
-#class DbusHandler(dbus.service.Object):
-#    def __init__(self, lora):
-#        print("init DBUS")
-#        self.bus = dbus.SystemBus()
-#        self.endpoint=lora
-#        name = dbus.service.BusName('org.cacophony.thermalrecorder', bus=self.bus)
-#        self.connected = False
-#        super().__init__(name, '/org/cacophony/thermalrecorder')
-#
-#    @dbus.service.method('org.cacophony.thermalrecorder', out_signature='n', in_singature='')
-#    def Connect(self):
-#        self.connected=True
-#        l4.queue_connect(self.endpoint)
-#        return self.endpoint.am_tx_seq_count
-#
-#    @dbus.service.method('org.cacophony.thermalrecorder', out_signature='n', in_singature='ssss')
-#    def Tracking(self, what, confidence, region, tracking):
-#        print ("{classification: "+what+", confidence: "+str(confidence)+"}")
-#        self.connected=True
-#        l4.queue_message(self.endpoint, "{classification: '"+what+"', confidence: "+str(confidence)+"}")
-#        return self.endpoint.am_tx_seq_count
-#
-#    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
-#    def File(self, filename):
-#        self.connected=True
-#        l4.queue_file(self.endpoint, filename)
-#        return self.endpoint.am_tx_seq_count
-#
-#    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
-#    def UnreliableMessage(self, message):
-#        self.connected=True
-#        l4.queue_unreliable_message(self.endpoint, message)
-#        return 0
-#
-#    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='')
-#    def Disconnect(self):
-#        self.connected=True
-#        l4.queue_disconnect(self.endpoint)
-#        return 0
+class LoraService(dbus.service.Object):
+    def __init__(self, lora):
+        print("init DBUS")
+        self.bus = dbus.SystemBus()
+        self.endpoint=lora
+        name = dbus.service.BusName('org.cacophony.Lora', bus=self.bus)
+        self.connected = False
+        super().__init__(name, '/org/cacophony/Lora')
 
-#    @dbus.service.method('org.cacophony.Lora', out_signature='ns', in_singature='s')
-#     def GetResponse(self, seq):
-#        self.connected=True
-#         return self.endpoint.am_status[seq], self.endpoint.am_response[seq]
+    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='')
+    def Connect(self):
+        self.connected=True
+        l4.queue_connect(self.endpoint)
+        return self.endpoint.am_tx_seq_count
+
+    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
+    def Tracking(self, what, confidence, region, tracking):
+        print ("{classification: "+what+", confidence: "+str(confidence)+"}")
+        self.connected=True
+        l4.queue_message(self.endpoint, "{classification: '"+what+"', confidence: "+str(confidence)+"}")
+        return self.endpoint.am_tx_seq_count
+
+    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
+    def File(self, filename):
+        self.connected=True
+        l4.queue_file(self.endpoint, filename)
+        return self.endpoint.am_tx_seq_count
+
+    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
+    def UnreliableMessage(self, message):
+        self.connected=True
+        l4.queue_unreliable_message(self.endpoint, message)
+        return 0
+
+    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='')
+    def Disconnect(self):
+        self.connected=True
+        l4.queue_disconnect(self.endpoint)
+        return 0
+
+    @dbus.service.method('org.cacophony.Lora', out_signature='ns', in_singature='s')
+    def GetResponse(self, seq):
+        self.connected=True
+        return self.endpoint.am_status[seq], self.endpoint.am_response[seq]
 
 # Background thread - checks each second for data to transmit via LoRaWAN.
 # First sends JOIN and REGISTER requests if we have not yet joined a network and registered with API
@@ -184,7 +190,7 @@ class txLoop(threading.Thread):
       logging.info("Start TX loop")
       self.exit_requested=False
       while not self.event.is_set():
-        if server.connected:
+        if lora_service.connected:
           self.check_tx_queue()
         sleep(1)
  
@@ -256,7 +262,8 @@ if __name__ == "__main__":
 
         mainloop = GLib.MainLoop()
  
-        server = DbusHandler(lora)
+        lora_service = LoraService(lora)
+        tracking_service = TrackingReporter(lora)
     
         try:
             init_logging()
@@ -273,10 +280,15 @@ if __name__ == "__main__":
             logging.warning("Graceful Exit")
 
         finally:
+            logging.error("Forced exit")
             logging.info("Terminate transmit handler")
             thread1.event.set()
             logging.warning("Turn off LoRa radio")
-            lora.set_mode(MODE.SLEEP)
+            l1_LoRa.select_sleep_mode(lora)
             logging.info("Closing socket connection")
-            #server.close()
+            #lora_service.close()
+            logging.info("End Tracking service")
+            tracking_service.quit()
+            logging.info("Disable hardware")
             BOARD.teardown()
+            logging.error("Teardown complete - safe to exit")
