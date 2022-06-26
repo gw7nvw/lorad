@@ -54,15 +54,24 @@ class CacophonyAPI():
            return None
 
     def send_event(endpoint, event):
+        print(event)
+        try:
+          eventJson=json.loads(event)
+          eventType = eventJson["e"]
+          eventDetails = eventJson["d"]
+          eventTimes = eventJson["t"]
+        except ValueError as e:
+          eventType = "unknown"
+          eventDetails = { "message" : event }
+          eventTimes = [datetime.datetime.utcnow().isoformat()+"Z"]
         request={
           "description": {
-            "type": "classifier",
-            "details": { 'classification': event }
+            "type": eventType,
+            "details": eventDetails,
           },
-          "dateTimes": [datetime.datetime.now().isoformat()]
+          "dateTimes": eventTimes,
         };
         #send response to end user agent
-        #note EUID must be hex value in lowercase
         url = "https://api-test.cacophony.org.nz/api/v1/events"
         myheaders = { 'Authorization': endpoint.token, 'Content-Type': 'application/json; charset=utf-8', 'User-Agent': 'my-integration/my-integration-version' }
         print(event)
@@ -89,14 +98,16 @@ class Server(BaseHTTPRequestHandler):
         self.end_headers()
 
         if tx_packet.mtype!=ccm.MTYPE_INVALID:
+          print("Sending response to LoRa")  
           response=tx_packet.to_str()
-          #send response to end uee agent
+          #send response to end user agent
           #note EUID must be hex value in lowercase
           url = "https://au1.cloud.thethings.network/api/v3/as/applications/cacophony/webhooks/test-webhook/devices/eui-"+euid.lower()+"/down/replace"
           myobj = {"downlinks":[{ "frm_payload":str(base64.b64encode(response.encode('utf-8')),'utf-8'), "f_port":1, "priority":"NORMAL"}]}
           myheaders = { 'Authorization': API_KEY, 'Content-Type': 'application/json; charset=utf-8', 'User-Agent': 'my-integration/my-integration-version' }
+          print(response)
           x = requests.post(url, headers = myheaders, json = myobj )
-  
+          print(x)  
 
     def do_POST(self):
 
@@ -120,7 +131,7 @@ class Server(BaseHTTPRequestHandler):
 
         #process JOIN
         if 'join_accept' in json_data:
-          logging.info("Registered endpoint :"+lora_deveui)
+          logging.info("Receiveed JOIN request from endpoint :"+lora_deveui)
           index=Endpoint.find(endpoints,lora_deveui)
           if index!=None:
               logging.info("Removing previously registered endpoint")
@@ -146,7 +157,7 @@ class Server(BaseHTTPRequestHandler):
             lora_fcnt=json_data['uplink_message']['f_cnt']
             lora_devaddr=json_data['end_device_ids']['dev_addr']
   
-            logging.debug("Received LoRa data: DevEUI: %s - DevAddr: %s ",lora_deveui,lora_devaddr)
+            logging.info("Received LoRa data: DevEUI: %s - DevAddr: %s ",lora_deveui,lora_devaddr)
             hex_payload=base64.b64decode(lora_payload)
             str_payload=''.join(list(map(chr,hex_payload)))
             packet=ccm.packet_from_str(str_payload)
@@ -157,10 +168,10 @@ class Server(BaseHTTPRequestHandler):
             if packet.mtype!=ccm.MTYPE_INVALID:
 
               #Handle ACKing of reliable message types
-              logging.debug("Reliable?: "+str(packet.mclass))
+              logging.info("Reliable?: "+str(packet.mclass))
               if packet.mclass==ccm.MCLASS_RELIABLE:
                 their_seq_cnt=packet.txc
-                logging.debug("rx: "+str(their_seq_cnt)+", tx: "+ str(endpoints[endpoint].our_seq_cnt))
+                logging.info("rx: "+str(their_seq_cnt)+", tx: "+ str(endpoints[endpoint].our_seq_cnt))
                 #This was the next message sequence we expected 
                 if (int(their_seq_cnt)==0 or int(their_seq_cnt)==(endpoints[endpoint].their_last_scnt+1)&15):
                   tx_packet.mtype=ccm.MTYPE_UA
@@ -180,6 +191,7 @@ class Server(BaseHTTPRequestHandler):
                   tx_packet.rxc=(endpoints[endpoint].their_last_scnt+1)&15
                   tx_packet.txc=endpoints[endpoint].our_seq_cnt
                   tx_packet.payload.ccm_ua.status = ccm.STATUS_NONE
+                  tx_packet.payload.ccm_ua.message = ""
                   logging.info("Sending RNR: "+str((endpoints[endpoint].their_last_scnt+1)&15))
                   #And invalidate / ignore this message
                   packet.mtype=ccm.MTYPE_INVALID
@@ -217,6 +229,42 @@ class Server(BaseHTTPRequestHandler):
                 result=CacophonyAPI.send_event(endpoints[endpoint],message)
                 tx_packet.payload.ccm_ua.status=result['status']
                 tx_packet.payload.ccm_ua.response=result['response']
+
+              #Handle multipart
+              elif packet.mtype==ccm.MTYPE_MULTIPART:
+                thispart=packet.payload.ccm_file.segc
+                length=packet.payload.ccm_file.len
+                data=packet.payload.ccm_file.filepart
+
+                #New mutipart
+                if thispart==1:
+                  endpoints[endpoint].currentfile = [""] * length
+                  endpoints[endpoint].lastpart=0
+                  logging.info ("New multipart")
+           
+                #Out of sequence multipart - abort (can only happen  
+                #if we lose len(lora_sequence_counter) packets
+                if thispart!=endpoints[endpoint].lastpart+1:
+                  logging.error("ERROR: out of sequnce. Aborting. Got "+str(thispart)+", expeted "+str(endpoints[endpoint].lastpart+1))
+                  currentfile=None
+                  endpoints[endpoint].lastpart=0
+
+  
+                #Expected multipart - append to received message
+                else:
+                  logging.info("Multipart continuation")
+                  endpoints[endpoint].currentfile[thispart-1]=data
+                  endpoints[endpoint].lastpart=thispart
+                  tx_packet.payload.ccm_ua.status=ccm.STATUS_PARTIAL
+                
+                  #Last part
+                  if thispart==length:
+                    logging.info("Multipart complete")
+                    thisfile=''.join(endpoints[endpoint].currentfile)
+                    currentfile=None
+                    lastpart=0
+                    tx_packet.payload.ccm_ua.status=ccm.STATUS_SUCCESS
+                    result=CacophonyAPI.send_event(endpoints[endpoint],thisfile)
 
               #Handle file uploads
               elif packet.mtype==ccm.MTYPE_FILE:
@@ -272,7 +320,8 @@ def run(server_class=HTTPServer, handler_class=Server, port=3123):
 
 if __name__ == "__main__":
     from sys import argv
-    logging.basicConfig(filename="lora_appserver.log",level=logging.DEBUG,format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(level=logging.DEBUG,format="%(asctime)s - %(levelname)s - %(message)s")
+    #logging.basicConfig(filename="lora_appserver.log",level=logging.DEBUG,format="%(asctime)s - %(levelname)s - %(message)s")
     logging.info("Starting lora_appserver.py")
 
     if len(argv) == 2:
