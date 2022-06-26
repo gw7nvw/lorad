@@ -189,12 +189,13 @@ class txLoop(threading.Thread):
       self.counter = counter
       self.event=threading.Event()
       self.endpoint=lora
+      self.registerQueued=False
 
    def run(self):
       logging.info("Start TX loop")
       self.exit_requested=False
       while not self.event.is_set():
-        if lora_service.connected:
+        if lora_service.connected or tracking_service.connected:
           self.check_tx_queue()
         sleep(1)
  
@@ -208,6 +209,7 @@ class txLoop(threading.Thread):
         # state of the endpoint and discard everything in our queue
         if self.endpoint.tx_retries>l3.MAX_RETRIES:
           self.endpoint.joined=False
+          self.endpoint.registered=False
           self.endpoint.reset_endpoint()
 
         else: 
@@ -218,10 +220,11 @@ class txLoop(threading.Thread):
             self.endpoint.tx_retries+=1
             l3.send_join(self.endpoint)
             l4.queue_connect(self.endpoint)
+            self.registerQueued=True
 
           # Otherwise, check for unreliable messages to send (we
           # prioritise these are they are faster than reliable messaging) 
-          elif len(self.endpoint.um_backlog)>0:
+          elif self.registerQueued==False and len(self.endpoint.um_backlog)>0:
             logging.info("Send next unreliable message")
             l3.send_unreliable_packet(self.endpoint)
  
@@ -230,6 +233,7 @@ class txLoop(threading.Thread):
             self.endpoint.tx_retries+=1
             #send next message for which an ack has not been received
             l3.send_reliable_packet(self.endpoint)
+            self.registerQueued=False
 
 
 if __name__ == "__main__":

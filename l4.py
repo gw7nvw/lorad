@@ -45,7 +45,7 @@ class l4():
         packet.mclass=ccm.MCLASS_RELIABLE
         packet.payload.ccm_register.device_id=endpoint.dev_id
         packet.payload.ccm_register.password=endpoint.dev_pw
-
+        endpoint.registerQueued=True
         #reset tx counters to insert register at start of queue
         endpoint.am_last_tx_seq_acked=0
         endpoint.am_last_tx_seq_sent=0
