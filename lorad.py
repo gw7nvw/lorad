@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/pi/lora/bin/python3 -u
 
 """ An asynchronous socket <-> LoRaWAN interface """
 
@@ -54,6 +54,12 @@
 import sys, signal
 from time import sleep
 import threading
+import datetime
+
+#logging
+import logging
+from ml_tools.logs import init_logging
+init_logging()
 
 #hardware modem
 #from SX127x.LoRa import *
@@ -64,9 +70,6 @@ from l3_LoRaWAN import l3
 from l1_LoRa import l1_LoRa
 from SX127x.board_config import BOARD
 
-#logging
-import logging
-from ml_tools.logs import init_logging
 
 #dbus stuff
 import dbus
@@ -93,7 +96,8 @@ class TrackingReporter:
         )
     
         self.connected=True
-        l4.queue_unreliable_message(self.endpoint, "{classification: '"+what+"', confidence: "+str(confidence)+"}")
+        timestamp = datetime.datetime.utcnow().isoformat()+"Z"
+        l4.queue_unreliable_message(self.endpoint, '{"t": ["'+timestamp+'"], "e": "classifier", "d": {"what": "'+what+'", "conf": '+str(confidence)+'}}')
 
     def __init__(self, endpoint):
         self.endpoint=endpoint
@@ -118,6 +122,7 @@ class TrackingReporter:
             sleep(60)
             continue
 
+        logging.info("Subscribeed to DBUS")
 
         bus.add_signal_receiver(
             self.signal_tracking_callback,
@@ -143,10 +148,9 @@ class LoraService(dbus.service.Object):
         return self.endpoint.am_tx_seq_count
 
     @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
-    def Tracking(self, what, confidence, region, tracking):
-        print ("{classification: "+what+", confidence: "+str(confidence)+"}")
+    def Message(self, message):
         self.connected=True
-        l4.queue_message(self.endpoint, "{classification: '"+what+"', confidence: "+str(confidence)+"}")
+        l4.queue_message(self.endpoint, message)
         return self.endpoint.am_tx_seq_count
 
     @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='s')
@@ -197,7 +201,7 @@ class txLoop(threading.Thread):
    # main loop - check if we have packets to tx in either unreliable or reliable 
    # message queue, and if so send them
    def check_tx_queue(self):
-      logging.info("Check TX loop")
+      logging.debug("Check TX loop")
       if len(self.endpoint.um_backlog)>0 or self.endpoint.am_tx_seq_count!=self.endpoint.am_last_tx_seq_acked or self.endpoint.join_required==True:
 
         # if we have exceeded our retry limit, assume we are disconnected, reset the
@@ -230,6 +234,7 @@ class txLoop(threading.Thread):
 
 if __name__ == "__main__":
 
+        logging.error ("test error")
         import dbus.mainloop.glib 
         from gi.repository import GLib
 
@@ -266,16 +271,14 @@ if __name__ == "__main__":
         tracking_service = TrackingReporter(lora)
     
         try:
-            init_logging()
             # Start tx handler loop
             thread1 = txLoop(1, "Thread-1", 1, lora)
             thread1.daemon  = True
             thread1.start()
 
             # Start interrupt handlers for socket and modem callbacks
-            logging.debug ("Starting LoRa DBus service")
+            logging.info ("Starting LoRa DBus service")
             mainloop.run()
-
         except SystemExit:
             logging.warning("Graceful Exit")
 

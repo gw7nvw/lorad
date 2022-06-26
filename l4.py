@@ -8,14 +8,22 @@ import base64
 
 class l4():
     def queue_message(endpoint, message):
-        packet=ccm.ccm_packet()
-        packet.mtype=ccm.MTYPE_MESSAGE
-        packet.mclass=ccm.MCLASS_RELIABLE
-        packet.payload.ccm_message.message=message
+        if len(message)>ccm.MAX_PAYLOAD_LEN:
+            #should use multi-part-message
+            l4.queue_multipart_message(endpoint,message)
+        else:
+            packet=ccm.ccm_packet()
+            packet.mtype=ccm.MTYPE_MESSAGE
+            packet.mclass=ccm.MCLASS_RELIABLE
+            packet.payload.ccm_message.message=message
 
-        l3.queue_reliable_packet(endpoint,packet)
+            l3.queue_reliable_packet(endpoint,packet)
 
     def queue_unreliable_message(endpoint, message):
+        if len(message)>ccm.MAX_PAYLOAD_LEN-1:
+            #truncate as no multi-prt for unreliable mode
+            message=message[0:ccm.MAX_PAYLOAD_LEN-1]
+
         packet=ccm.ccm_packet()
         packet.mtype=ccm.MTYPE_MESSAGE
         packet.mclass=ccm.MCLASS_UNRELIABLE
@@ -28,7 +36,7 @@ class l4():
         packet.mclass=ccm.MCLASS_RELIABLE
 
         l3.queue_reliable_packet(endpoint,packet)
-        logging.debug("Queueing DISC ",endpoint.am_tx_seq_count)
+        logging.info("Queueing DISC %d",endpoint.am_tx_seq_count)
 
     def queue_connect(endpoint):
 
@@ -44,7 +52,37 @@ class l4():
 
         packet.txc=1
         endpoint.tx_backlog[1]=packet
-        logging.debug("Queueing ",1)
+        logging.debug("Queueing %d",1)
+
+    def queue_multipart_message(endpoint, message):
+        logging.info("Sending multipart")
+
+        bllen=int((len(message)-1)/ccm.MAX_PAYLOAD_LEN)+1 #+1 for rounding
+        if bllen>ccm.MAX_FILE_BLOCKS:
+          logging.error("Message too long. "+str(bllen)+" blocks > maximum "+str(cm.MAX_FILE_BLOCKS))
+          return 1
+
+        blcnt=1
+        while blcnt<=bllen:
+
+          if len(message)>0:
+            packet=ccm.ccm_packet()
+            packet.mtype=ccm.MTYPE_MULTIPART
+            packet.mclass=ccm.MCLASS_RELIABLE
+            packet.payload.ccm_file.segc=blcnt
+            packet.payload.ccm_file.len=bllen
+            packet.payload.ccm_file.filepart=message[0:ccm.MAX_PAYLOAD_LEN]
+            blcnt=blcnt+1
+            #remove queue data from buffer
+            logging.info("Queueing next file segment")
+            logging.debug("Part %d of %d",blcnt,bllen)
+            if len(message)>ccm.MAX_PAYLOAD_LEN:
+              message=message[ccm.MAX_PAYLOAD_LEN:]
+            else:
+              message=""
+
+            l3.queue_reliable_packet(endpoint,packet)
+
 
     def queue_file(endpoint, filename):
         logging.info("Sending file")
@@ -82,7 +120,7 @@ class l4():
             blcnt=blcnt+1
 
             #remove queue data from buffer
-            logging.debug("Queueing next file segment")
+            logging.info("Queueing next file segment")
             if len(bl64)>ccm.MAX_PAYLOAD_LEN:
               bl64=bl64[ccm.MAX_PAYLOAD_LEN:]
             else:

@@ -14,6 +14,7 @@ MTYPE_MESSAGE=5
 MTYPE_FILE=6
 MTYPE_PING=7
 MTYPE_REGISTER=8
+MTYPE_MULTIPART=9
 
 STATUS_NONE=0
 STATUS_QUEUED=1
@@ -132,7 +133,7 @@ class ccm_packet(Structure):
     conf_mtype = chr(((self.rnr&1) << 7) + ((self.mclass&1) << 6) + (self.mtype&63))
     if self.mtype==MTYPE_MESSAGE:
        payload=self.payload.ccm_message.to_str()
-    elif self.mtype==MTYPE_FILE:
+    elif (self.mtype==MTYPE_FILE or self.mtype==MTYPE_MULTIPART):
        payload=self.payload.ccm_file.to_str()
     elif self.mtype==MTYPE_REGISTER:
        payload=self.payload.ccm_register.to_str()
@@ -163,7 +164,7 @@ def packet_from_str(data):
       payload=data[4:]
       if packet.mtype==MTYPE_MESSAGE:
            packet.payload.ccm_message.message=payload
-      elif packet.mtype==MTYPE_FILE:
+      elif (packet.mtype==MTYPE_FILE or packet.mtype==MTYPE_MULTIPART):
            packet.payload.ccm_file.segc=ord(payload[0])      
            packet.payload.ccm_file.len=ord(payload[1])      
            packet.payload.ccm_file.filepart=payload[2:]
@@ -172,7 +173,10 @@ def packet_from_str(data):
            packet.payload.ccm_register.password = payload[4:]
       elif packet.mtype==MTYPE_UA:
            packet.payload.ccm_ua.status = ord(payload[0])
-           packet.payload.ccm_ua.message = payload[1:]
+           if len(payload)>0:
+               packet.payload.ccm_ua.message = payload[1:]
+           else:
+               packet.payload.ccm_ua.message = ""
 
   
   return packet

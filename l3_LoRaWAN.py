@@ -15,7 +15,7 @@ class l3():
         endpoint.am_tx_seq_count=(endpoint.am_tx_seq_count+1)&15
         packet.txc=endpoint.am_tx_seq_count
         endpoint.tx_backlog[endpoint.am_tx_seq_count]=packet
-        logging.debug("Queueing ",endpoint.am_tx_seq_count)
+        logging.info("Queueing %d",endpoint.am_tx_seq_count)
 
         #set status to queued
         endpoint.am_status[endpoint.am_tx_seq_count]=ccm.STATUS_QUEUED
@@ -23,12 +23,12 @@ class l3():
 
     def queue_unreliable_packet(endpoint, packet):
         endpoint.um_backlog.append(packet)
-        logging.debug("Queueing unreliable packet")
+        logging.info("Queueing unreliable packet")
 
     def send_join(endpoint):
         #generate JOIN message
         endpoint.devnonce = [randrange(256), randrange(256)]
-        logging.debug("Sending LoRaWAN join request\n")
+        logging.info("Sending LoRaWAN join request\n")
         lorawan = LoRaWAN.new(endpoint.appkey)
         lorawan.create(MHDR.JOIN_REQUEST, {'deveui': endpoint.deveui, 'appeui': endpoint.appeui, 'devnonce': endpoint.devnonce})
         endpoint.send_lora_packet(lorawan.to_raw())
@@ -98,14 +98,14 @@ class l3():
           lorawan = LoRaWAN.new([], endpoint.appkey)
 
         # decode / decrypt the packet
-        logging.debug("Received packet")
+        logging.info("Received packet")
         lorawan.read(payload)
         lorawan.get_payload()
         lorawan.get_mhdr().get_mversion()
 
         #Check MHeader MTYPE for JOIN message
         if lorawan.get_mhdr().get_mtype() == MHDR.JOIN_ACCEPT:
-            logging.debug("Got LoRaWAN join accept")
+            logging.info("Got LoRaWAN join accept")
             endpoint.devaddr = lorawan.get_devaddr()
             endpoint.nwskey = lorawan.derive_nwskey(endpoint.devnonce)
             endpoint.appskey = lorawan.derive_appskey(endpoint.devnonce)
@@ -135,21 +135,21 @@ class l3():
 
               #Check for DM 'disconnected'
               if packet.mtype==ccm.MTYPE_DM:
-                logging.debug("Received DM - disconnected")
+                logging.info("Received DM - disconnected")
                 endpoint.reset_endpoint()
 
               else:
                 #check for acks to our transmissions
                 if packet.rnr==ccm.RECEIVED:
                    endpoint.am_last_tx_seq_acked=packet.rxc
-                   logging.debug("Received RR: ",endpoint.am_last_tx_seq_acked)
+                   logging.info("Received RR: %d ",endpoint.am_last_tx_seq_acked)
                    endpoint.am_status[endpoint.am_last_tx_seq_acked]=ccm.STATUS_ACKED
                
                 #handle missed past packets (move pointer back to that position in
                 #circular tx FIFO)
                 if packet.rnr==ccm.NOT_RECEIVED:
                    unacked=packet.rxc
-                   logging.debug("Received RNR: resending from ",unacked)
+                   logging.info("Received RNR: resending from %d",unacked)
                    #resend from #
                    endpoint.am_last_tx_seq_acked=(unacked-1)&15
 
