@@ -110,6 +110,7 @@ class l3():
             endpoint.nwskey = lorawan.derive_nwskey(endpoint.devnonce)
             endpoint.appskey = lorawan.derive_appskey(endpoint.devnonce)
             endpoint.joined = True
+            endpoint.status = ccm.STATUS_JOINED
             endpoint.join_required = False
 
         #All other LORA message types, look at our own payload MTYPE to determine action
@@ -144,6 +145,7 @@ class l3():
                    endpoint.am_last_tx_seq_acked=packet.rxc
                    logging.info("Received RR: %d ",endpoint.am_last_tx_seq_acked)
                    endpoint.am_status[endpoint.am_last_tx_seq_acked]=ccm.STATUS_ACKED
+                   endpoint.status = ccm.STATUS_REGISTERED
                
                 #handle missed past packets (move pointer back to that position in
                 #circular tx FIFO)

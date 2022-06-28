@@ -69,6 +69,7 @@ from l4 import l4
 from l3_LoRaWAN import l3
 from l1_LoRa import l1_LoRa
 from SX127x.board_config import BOARD
+import ccm
 
 
 #dbus stuff
@@ -140,6 +141,7 @@ class LoraService(dbus.service.Object):
         name = dbus.service.BusName('org.cacophony.Lora', bus=self.bus)
         self.connected = False
         super().__init__(name, '/org/cacophony/Lora')
+        self.endpoint.status = ccm.STATUS_RUNNING
 
     @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='')
     def Connect(self):
@@ -170,6 +172,10 @@ class LoraService(dbus.service.Object):
         self.connected=True
         l4.queue_disconnect(self.endpoint)
         return 0
+
+    @dbus.service.method('org.cacophony.Lora', out_signature='n', in_singature='')
+    def GetStatus(self):
+        return lora_service.endpoint.status
 
     @dbus.service.method('org.cacophony.Lora', out_signature='ns', in_singature='s')
     def GetResponse(self, seq):
@@ -208,8 +214,8 @@ class txLoop(threading.Thread):
         # if we have exceeded our retry limit, assume we are disconnected, reset the
         # state of the endpoint and discard everything in our queue
         if self.endpoint.tx_retries>l3.MAX_RETRIES:
+          self.endpoint.status=ccm.STATUS_RUNNING
           self.endpoint.joined=False
-          self.endpoint.registered=False
           self.endpoint.reset_endpoint()
 
         else: 
