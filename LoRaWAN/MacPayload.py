@@ -14,6 +14,7 @@ class MacPayload:
         if len(mac_payload) < 1:
             raise MalformedPacketException("Invalid mac payload")
 
+        
         self.fhdr = FHDR()
         self.fhdr.read(mac_payload)
         self.frm_payload = None
@@ -25,9 +26,11 @@ class MacPayload:
             self.frm_payload.read(mac_payload)
         if mtype == MHDR.UNCONF_DATA_UP or mtype == MHDR.UNCONF_DATA_DOWN or\
                 mtype == MHDR.CONF_DATA_UP or mtype == MHDR.CONF_DATA_DOWN:
-            self.fport = mac_payload[self.fhdr.length()]
-            self.frm_payload = DataPayload()
-            self.frm_payload.read(self, mac_payload[self.fhdr.length() + 1:])
+                if len(mac_payload)>self.fhdr.length():
+                    self.fport = mac_payload[self.fhdr.length()]
+                    self.frm_payload = DataPayload()
+                    self.frm_payload.read(self, mac_payload[self.fhdr.length() + 1:])
+                  
 
     def create(self, mtype, key, args):
         self.fhdr = FHDR()

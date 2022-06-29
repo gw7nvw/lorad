@@ -67,6 +67,7 @@ class l1_LoRa(LoRa):
         logging.debug("Listening RX2")
         self.set_mode(MODE.STDBY)
         self.set_dio_mapping([0] * 6)
+        self.set_invert_iq(1)
         self.set_freq(self.RX2_FREQ)
         self.set_bw(self.RX2_BW)
         self.reset_ptr_rx()

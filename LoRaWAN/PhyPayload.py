@@ -83,7 +83,10 @@ class PhyPayload:
             return self.mac_payload.fhdr.get_devaddr()
 
     def get_payload(self):
-        return self.mac_payload.frm_payload.decrypt_payload(self.appkey, self.get_direction(), self.mic)
+        if self.mac_payload.frm_payload:
+            return self.mac_payload.frm_payload.decrypt_payload(self.appkey, self.get_direction(), self.mic)
+        else:
+            return []
 
     def derive_nwskey(self, devnonce):
         return self.mac_payload.frm_payload.derive_nwskey(self.appkey, devnonce)
